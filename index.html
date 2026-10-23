@@ -107,9 +107,9 @@
           </div>
         </div>
 
-        <!-- Share URL Bar -->
+        <!-- Share URL & Delete Controls Bar -->
         <div class="mt-5 space-y-2">
-          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">Share This Link With Voters</label>
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">Poll Management & Sharing</label>
           <div class="flex flex-col sm:flex-row gap-2">
             <input type="text" id="shareUrlInput" readonly class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-indigo-300 font-mono outline-none" />
             <button onclick="copyShareUrl()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
@@ -117,6 +117,9 @@
             </button>
             <button onclick="toggleQrModal()" class="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
               <i class="fa-solid fa-qrcode"></i> QR
+            </button>
+            <button onclick="openDeleteConfirmModal()" class="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-trash-can"></i> Delete Poll
             </button>
           </div>
         </div>
@@ -164,6 +167,25 @@
       </div>
     </section>
   </main>
+
+  <!-- Delete Confirmation Modal -->
+  <div id="deleteModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-sm w-full text-center shadow-2xl relative">
+      <div class="w-12 h-12 bg-rose-500/20 text-rose-400 rounded-full flex items-center justify-center mx-auto mb-3 text-xl">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h3 class="font-bold text-white text-base mb-1">Delete Poll?</h3>
+      <p class="text-xs text-slate-400 mb-5">This action cannot be undone. The poll link will stop working for all voters.</p>
+      <div class="flex gap-2">
+        <button onclick="closeDeleteConfirmModal()" class="flex-1 py-2.5 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-xl transition">
+          Cancel
+        </button>
+        <button onclick="executeDeletePoll()" class="flex-1 py-2.5 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold rounded-xl transition">
+          Yes, Delete
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- QR Code Modal -->
   <div id="qrModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
@@ -269,30 +291,7 @@
 
         const optionsObj = {};
         options.forEach((opt, idx) => {
-          optionsObj[`opt_${idx}`] = { text: opt, votes: 0 };
-        });
-
-        const pollPayload = {
-          id: pollId,
-          question: question,
-          createdAt: now,
-          expiresAt: now + DURATION_MS,
-          maxResponses: 100,
-          totalVotes: 0,
-          options: optionsObj
-        };
-
-        // Save locally
-        localStorage.setItem('poll_' + pollId, JSON.stringify(pollPayload));
-
-        if (db) {
-          db.ref('polls/' + pollId).set(pollPayload).catch(err => console.warn("DB save warn:", err));
-        }
-
-        // Bulletproof URL encoding (safe for all browsers)
-        const encodedState = encodeURIComponent(JSON.stringify(pollPayload));
-        const basePath = window.location.origin + window.location.pathname;
-        const shareUrl = `${basePath}?pollId=${pollId}&pollData=${encodedState}`;
+          optionsObj[`opt_${idx}`] = { text: opt, votes: 0 }; });  const pollPayload = { id: pollId, question: question, createdAt: now, expiresAt: now + DURATION_MS, maxResponses: 100, totalVotes: 0, options: optionsObj };  // Save locally localStorage.setItem('poll_' + pollId, JSON.stringify(pollPayload));  if (db) { db.ref('polls/' + pollId).set(pollPayload).catch(err => console.warn("DB save warn:", err)); }  const encodedState = encodeURIComponent(JSON.stringify(pollPayload)); const basePath = window.location.origin + window.location.pathname; const shareUrl = `${basePath}?pollId=${pollId}&pollData=${encodedState}`;
 
         window.history.pushState({}, '', shareUrl);
         loadPollData(pollPayload);
@@ -328,7 +327,7 @@
       } else if (fallbackData) {
         parseEncodedPoll(fallbackData);
       } else {
-        showToast("Poll not found or expired", "error");
+        showToast("Poll not found or deleted", "error");
         showCreateView();
       }
     }
@@ -338,7 +337,7 @@
         const decoded = JSON.parse(decodeURIComponent(encoded));
         loadPollData(decoded);
       } catch (err) {
-        showToast("Invalid poll link", "error");
+        showToast("Invalid or deleted poll link", "error");
         showCreateView();
       }
     }
@@ -373,11 +372,43 @@
         const msRemaining = data.expiresAt - now;
         const daysLeft = Math.floor(msRemaining / (1000 * 60 * 60 * 24));
         const hoursLeft = Math.floor((msRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        expiryBadge.innerText = `${daysLeft}d ${hoursLeft}h remaining`;
+        expiryBadge.innerText = `${daysLeft}d${hoursLeft}h remaining`;
       }
 
       renderOptionsList(data, isExpired || isCapped);
       renderChartOrList(data);
+    }
+
+    // --- DELETE POLL LOGIC ---
+    function openDeleteConfirmModal() {
+      document.getElementById('deleteModal').classList.remove('hidden');
+    }
+
+    function closeDeleteConfirmModal() {
+      document.getElementById('deleteModal').classList.add('hidden');
+    }
+
+    function executeDeletePoll() {
+      if (!currentPoll) return;
+
+      const pollId = currentPoll.id;
+
+      // 1. Remove from Firebase if connected
+      if (db) {
+        db.ref('polls/' + pollId).remove().catch(err => console.warn("Delete DB error:", err));
+      }
+
+      // 2. Remove local storage items
+      localStorage.removeItem('poll_' + pollId);
+      localStorage.removeItem('voted_' + pollId);
+
+      closeDeleteConfirmModal();
+      showToast("Poll successfully deleted!");
+
+      // 3. Reset state and URL back to Home
+      setTimeout(() => {
+        resetToHome();
+      }, 500);
     }
 
     // --- RENDER OPTIONS & CAST VOTE ---
@@ -395,11 +426,7 @@
 
         const isUserPick = hasVoted === key;
 
-        btn.className = `w-full text-left p-3.5 rounded-xl border transition flex items-center justify-between text-xs font-semibold ${
-          isUserPick
-            ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200'
-            : 'bg-slate-900 border-slate-700/80 hover:border-indigo-500 text-slate-200'
-        } ${btn.disabled ? 'opacity-60 cursor-not-allowed' : ''}`;
+        btn.className = `w-full text-left p-3.5 rounded-xl border transition flex items-center justify-between text-xs font-semibold ${ isUserPick ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200' : 'bg-slate-900 border-slate-700/80 hover:border-indigo-500 text-slate-200' } ${btn.disabled ? 'opacity-60 cursor-not-allowed' : ''}`;
 
         btn.onclick = () => castVote(key);
 
@@ -515,126 +542,4 @@
         row.innerHTML = `
           <div class="flex justify-between text-xs font-semibold text-slate-300">
             <span>${escapeHtml(opt.text)}</span>
-            <span class="text-indigo-400">${opt.votes || 0} (${pct}%)</span>
-          </div>
-          <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-700">
-            <div class="h-full rounded-full" style="width: ${pct}%; background-color: ${COLORS[idx % COLORS.length]}"></div>
-          </div>
-        `;
-        container.appendChild(row);
-      });
-    }
-
-    // --- UTILITIES ---
-    function addOptionInput() {
-      const container = document.getElementById('optionsContainer');
-      const count = container.children.length + 1;
-      if (count > 8) return showToast("Maximum 8 options allowed", "error");
-
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.required = true;
-      input.placeholder = `Option ${count}`;
-      input.className = 'poll-option-input w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-500 text-sm outline-none';
-      container.appendChild(input);
-    }
-
-    function copyShareUrl() {
-      const urlInput = document.getElementById('shareUrlInput');
-      urlInput.select();
-
-      if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(urlInput.value)
-          .then(() => showToast("Link copied to clipboard!"))
-          .catch(() => fallbackCopy(urlInput.value));
-      } else {
-        fallbackCopy(urlInput.value);
-      }
-    }
-
-    function fallbackCopy(text) {
-      try {
-        const el = document.createElement('textarea');
-        el.value = text;
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand('copy');
-        document.body.removeChild(el);
-        showToast("Link copied to clipboard!");
-      } catch (e) {
-        showToast("Select text manually to copy", "error");
-      }
-    }
-
-    function toggleQrModal() {
-      const modal = document.getElementById('qrModal');
-      const container = document.getElementById('qrcode');
-      modal.classList.toggle('hidden');
-
-      if (!modal.classList.contains('hidden')) {
-        container.innerHTML = '';
-        new QRCode(container, {
-          text: window.location.href,
-          width: 150,
-          height: 150,
-          colorDark: "#0f172a",
-          colorLight: "#ffffff"
-        });
-      }
-    }
-
-    function showToast(msg, type = 'success') {
-      const toast = document.getElementById('toast');
-      const toastContent = document.getElementById('toastContent');
-      document.getElementById('toastMsg').innerText = msg;
-
-      toastContent.className = type === 'error'
-        ? "bg-rose-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-sm font-medium"
-        : "bg-indigo-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-sm font-medium";
-
-      toast.classList.remove('translate-y-20', 'opacity-0');
-      setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
-    }
-
-    function openConfigModal() {
-      if (fbConfig) {
-        document.getElementById('cfgDbUrl').value = fbConfig.databaseURL || '';
-        document.getElementById('cfgApiKey').value = fbConfig.apiKey || '';
-      }
-      document.getElementById('configModal').classList.remove('hidden');
-    }
-
-    function closeConfigModal() {
-      document.getElementById('configModal').classList.add('hidden');
-    }
-
-    function saveConfig() {
-      const dbUrl = document.getElementById('cfgDbUrl').value.trim();
-      const apiKey = document.getElementById('cfgApiKey').value.trim();
-
-      if (!dbUrl) return showToast("Database URL required", "error");
-
-      fbConfig = { databaseURL: dbUrl, apiKey: apiKey || "AIzaSyDemo" };
-      localStorage.setItem('livepulse_fb_config', JSON.stringify(fbConfig));
-      closeConfigModal();
-      showToast("Config saved! Reloading page...");
-      setTimeout(() => window.location.reload(), 1000);
-    }
-
-    function resetToHome() {
-      window.location.href = window.location.origin + window.location.pathname;
-    }
-
-    function showCreateView() {
-      document.getElementById('createView').classList.remove('hidden');
-      document.getElementById('activePollView').classList.add('hidden');
-      document.getElementById('newPollNavBtn').classList.add('hidden');
-      switchFormat('doughnut');
-    }
-
-    function escapeHtml(str) {
-      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-    }
-  </script>
-</body>
-</html>
+            <span class="text-indigo-400">${opt.
