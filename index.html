@@ -122,7 +122,7 @@
         </div>
       </div>
 
-      <!-- Voting Options & Live Circle Distribution -->
+      <!-- Voting Options & Live Distribution -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         <!-- Options / Voting Buttons -->
@@ -205,8 +205,7 @@
   </div>
 
   <script>
-    // --- STATE MANAGEMENT ---
-    const DURATION_MS = 7 * 24 * 60 * 60 * 1000; // STRICT 7-DAY DURATION
+    const DURATION_MS = 7 * 24 * 60 * 60 * 1000; // 7 Days
     const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#f97316'];
 
     let currentPoll = null;
@@ -214,22 +213,25 @@
     let activeFormat = 'doughnut';
     let db = null;
 
-    // Load saved Firebase credentials if available
     let fbConfig = JSON.parse(localStorage.getItem('livepulse_fb_config')) || null;
 
     window.addEventListener('DOMContentLoaded', () => {
-      initFirebaseIfAvailable();
+      try {
+        initFirebaseIfAvailable();
 
-      // Check URL for existing poll
-      const urlParams = new URLSearchParams(window.location.search);
-      const pollId = urlParams.get('pollId');
-      const encodedData = urlParams.get('pollData');
+        const urlParams = new URLSearchParams(window.location.search);
+        const pollId = urlParams.get('pollId');
+        const encodedData = urlParams.get('pollData');
 
-      if (pollId) {
-        fetchPollById(pollId, encodedData);
-      } else if (encodedData) {
-        parseEncodedPoll(encodedData);
-      } else {
+        if (pollId) {
+          fetchPollById(pollId, encodedData);
+        } else if (encodedData) {
+          parseEncodedPoll(encodedData);
+        } else {
+          showCreateView();
+        }
+      } catch (err) {
+        console.error("Init Error:", err);
         showCreateView();
       }
     });
@@ -248,54 +250,57 @@
     // --- CREATE POLL HANDLER ---
     function handleCreatePoll(e) {
       e.preventDefault();
+      try {
+        const question = document.getElementById('pollQuestion').value.trim();
+        const optionInputs = document.querySelectorAll('.poll-option-input');
 
-      const question = document.getElementById('pollQuestion').value.trim();
-      const optionInputs = document.querySelectorAll('.poll-option-input');
+        const options = [];
+        optionInputs.forEach(i => {
+          if (i.value.trim()) options.push(i.value.trim());
+        });
 
-      const options = [];
-      optionInputs.forEach(i => {
-        if (i.value.trim()) options.push(i.value.trim());
-      });
+        if (options.length < 2) {
+          showToast("Please provide at least 2 options", "error");
+          return;
+        }
 
-      if (options.length < 2) {
-        showToast("Please provide at least 2 options", "error");
-        return;
+        const now = Date.now();
+        const pollId = 'poll_' + Math.random().toString(36).substring(2, 9);
+
+        const optionsObj = {};
+        options.forEach((opt, idx) => {
+          optionsObj[`opt_${idx}`] = { text: opt, votes: 0 };
+        });
+
+        const pollPayload = {
+          id: pollId,
+          question: question,
+          createdAt: now,
+          expiresAt: now + DURATION_MS,
+          maxResponses: 100,
+          totalVotes: 0,
+          options: optionsObj
+        };
+
+        // Save locally
+        localStorage.setItem('poll_' + pollId, JSON.stringify(pollPayload));
+
+        if (db) {
+          db.ref('polls/' + pollId).set(pollPayload).catch(err => console.warn("DB save warn:", err));
+        }
+
+        // Bulletproof URL encoding (safe for all browsers)
+        const encodedState = encodeURIComponent(JSON.stringify(pollPayload));
+        const basePath = window.location.origin + window.location.pathname;
+        const shareUrl = `${basePath}?pollId=${pollId}&pollData=${encodedState}`;
+
+        window.history.pushState({}, '', shareUrl);
+        loadPollData(pollPayload);
+        showToast("Link generated successfully! Valid for 7 days.");
+      } catch (err) {
+        console.error("Create poll error:", err);
+        showToast("Failed to create poll. Check console.", "error");
       }
-
-      const now = Date.now();
-      const pollId = 'poll_' + Math.random().toString(36).substring(2, 9);
-
-      const optionsObj = {};
-      options.forEach((opt, idx) => {
-        optionsObj[`opt_${idx}`] = { text: opt, votes: 0 };
-      });
-
-      const pollPayload = {
-        id: pollId,
-        question: question,
-        createdAt: now,
-        expiresAt: now + DURATION_MS,
-        maxResponses: 100,
-        totalVotes: 0,
-        options: optionsObj
-      };
-
-      // Save locally
-      localStorage.setItem('poll_' + pollId, JSON.stringify(pollPayload));
-
-      // Save to Firebase if database is connected
-      if (db) {
-        db.ref('polls/' + pollId).set(pollPayload);
-      }
-
-      // Generate fail-safe URL (includes encoded fallback data directly in link)
-      const encodedState = btoa(unescape(encodeURIComponent(JSON.stringify(pollPayload))));
-      const shareUrl = `${window.location.origin}${window.location.pathname}?pollId=${pollId}&pollData=${encodedState}`;
-
-      // Update URL and View
-      window.history.pushState({}, '', shareUrl);
-      loadPollData(pollPayload);
-      showToast("Link generated! Valid for 7 days.");
     }
 
     // --- FETCH & LOAD POLL STATE ---
@@ -308,6 +313,8 @@
           } else {
             fallbackLocalOrEncoded(pollId, fallbackData);
           }
+        }, (error) => {
+          fallbackLocalOrEncoded(pollId, fallbackData);
         });
       } else {
         fallbackLocalOrEncoded(pollId, fallbackData);
@@ -328,7 +335,7 @@
 
     function parseEncodedPoll(encoded) {
       try {
-        const decoded = JSON.parse(decodeURIComponent(escape(atob(encoded))));
+        const decoded = JSON.parse(decodeURIComponent(encoded));
         loadPollData(decoded);
       } catch (err) {
         showToast("Invalid poll link", "error");
@@ -346,10 +353,8 @@
       document.getElementById('activeQuestion').innerText = data.question;
       document.getElementById('totalVotesCount').innerText = data.totalVotes || 0;
 
-      // Update Share Link Box
       document.getElementById('shareUrlInput').value = window.location.href;
 
-      // Calculate 7-Day Expiration
       const now = Date.now();
       const isExpired = now >= data.expiresAt;
       const isCapped = (data.totalVotes || 0) >= data.maxResponses;
@@ -418,20 +423,18 @@
             p.totalVotes = (p.totalVotes || 0) + 1;
           }
           return p;
-        });
-      } else {
-        currentPoll.options[optKey].votes += 1;
-        currentPoll.totalVotes += 1;
-        localStorage.setItem('poll_' + currentPoll.id, JSON.stringify(currentPoll));
-
-        // Update URL encoded state so shareable URL reflects current votes locally
-        const encodedState = btoa(unescape(encodeURIComponent(JSON.stringify(currentPoll))));
-        const newUrl = `${window.location.origin}${window.location.pathname}?pollId=${currentPoll.id}&pollData=${encodedState}`;
-        window.history.pushState({}, '', newUrl);
-
-        loadPollData(currentPoll);
+        }).catch(err => console.warn("Vote TX warning:", err));
       }
 
+      currentPoll.options[optKey].votes += 1;
+      currentPoll.totalVotes += 1;
+      localStorage.setItem('poll_' + currentPoll.id, JSON.stringify(currentPoll));
+
+      const encodedState = encodeURIComponent(JSON.stringify(currentPoll));
+      const newUrl = `${window.location.origin}${window.location.pathname}?pollId=${currentPoll.id}&pollData=${encodedState}`;
+      window.history.pushState({}, '', newUrl);
+
+      loadPollData(currentPoll);
       showToast("Vote registered successfully!");
     }
 
