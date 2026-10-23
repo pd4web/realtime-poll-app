@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulseVote - Real-Time Interactive Polling</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- QR Code Generator JS CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- Canvas Confetti CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        /* Custom scrollbar and sleek transition effects */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(156, 163, 175, 0.4); border-radius: 9999px; }
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+        }
+        .dark .glass {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(12px);
+        }
+        .animate-bar { transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans transition-colors duration-300">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none"></div>
+
+    <!-- Application Navigation Bar -->
+    <header class="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 glass transition-colors">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3 cursor-pointer" onclick="app.switchTab('polls')">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white font-bold text-xl shadow-md shadow-indigo-500/20">
+                    <i class="fa-solid font-chart-pie"></i>
+                </div>
+                <div>
+                    <span class="font-extrabold text-xl tracking-tight bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">PulseVote</span>
+                    <span class="hidden sm:inline-block text-xs px-2 py-0.5 ml-2 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 font-semibold">Live</span>
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800/80 p-1 rounded-xl border border-slate-200 dark:border-slate-700/50">
+                <button onclick="app.switchTab('polls')" id="nav-polls" class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-700 shadow-sm">
+                    <i class="fa-solid fa-list-check"></i> Explore Polls
+                </button>
+                <button onclick="app.switchTab('create')" id="nav-create" class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+                    <i class="fa-solid fa-square-plus"></i> Create Poll
+                </button>
+                <button onclick="app.switchTab('analytics')" id="nav-analytics" class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">
+                    <i class="fa-solid fa-chart-line"></i> Analytics
+                </button>
+            </nav>
+
+            <!-- Header Controls -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <!-- Real-time Simulation Toggle -->
+                <button id="sim-toggle-btn" onclick="app.toggleSimulation()" class="px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 hover:bg-amber-500/20 transition flex items-center gap-2" title="Toggle automatic simulated live votes">
+                    <span class="relative flex h-2.5 w-2.5">
+                      <span id="sim-ping" class="hidden animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span id="sim-dot" class="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+                    </span>
+                    <span id="sim-text" class="hidden sm:inline">Simulate Live</span>
+                </button>
+
+                <!-- User Profile Switcher for Testing duplicate voting -->
+                <button onclick="app.switchUserIdentity()" class="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition" title="Switch User Identity (Resets local vote state for testing)">
+                    <i class="fa-solid fa-user-gear"></i>
+                </button>
+
+                <!-- Theme Toggle -->
+                <button onclick="app.toggleTheme()" class="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition" title="Toggle Theme">
+                    <i id="theme-icon" class="fa-solid fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Mobile Navigation Bottom Bar -->
+    <div class="md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 dark:border-slate-800 glass px-4 py-2 flex justify-around">
+        <button onclick="app.switchTab('polls')" id="mob-nav-polls" class="flex flex-col items-center gap-1 text-xs font-medium text-indigo-500">
+            <i class="fa-solid fa-list-check text-lg"></i> Polls
+        </button>
+        <button onclick="app.switchTab('create')" id="mob-nav-create" class="flex flex-col items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <i class="fa-solid fa-square-plus text-lg"></i> Create
+        </button>
+        <button onclick="app.switchTab('analytics')" id="mob-nav-analytics" class="flex flex-col items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400">
+            <i class="fa-solid fa-chart-line text-lg"></i> Analytics
+        </button>
+    </div>
+
+    <!-- Main Content Area -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-8">
+
+        <!-- TAB 1: POLLS LISTING & VOTE INTERFACE -->
+        <section id="tab-polls" class="space-y-6">
+            <!-- Search & Filtering Bar -->
+            <div class="flex flex-col sm:flex-row gap-4 justify-between items-stretch sm:items-center bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm">
+                <!-- Search Input -->
+                <div class="relative flex-1">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="search-input" oninput="app.renderPolls()" placeholder="Search polls by title or topic..." class="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition">
+                </div>
+                <!-- Controls Filter & Sort -->
+                <div class="flex gap-2 flex-wrap sm:flex-nowrap">
+                    <select id="filter-status" onchange="app.renderPolls()" class="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 dark:text-slate-300">
+                        <option value="all">All Polls</option>
+                        <option value="active" selected>Active Only</option>
+                        <option value="ended">Ended Only</option>
+                    </select>
+                    <select id="sort-by" onchange="app.renderPolls()" class="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-700 dark:text-slate-300">
+                        <option value="newest">Newest First</option>
+                        <option value="most-votes">Most Voted</option>
+                        <option value="ending-soon">Ending Soonest</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Active User Context Banner -->
+            <div class="bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-3 flex items-center justify-between text-xs sm:text-sm text-indigo-700 dark:text-indigo-300">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-id-badge text-indigo-500 text-base"></i>
+                    <span>Voting as: <strong id="current-user-display" class="font-bold">User-Default</strong></span>
+                </div>
+                <button onclick="app.resetUserVotes()" class="hover:underline font-semibold text-xs text-indigo-600 dark:text-indigo-400">
+                    <i class="fa-solid fa-rotate-left mr-1"></i>Reset My Local Votes
+                </button>
+            </div>
+
+            <!-- Poll Cards Container -->
+            <div id="polls-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Dynamically Populated -->
+            </div>
+            
+            <!-- Empty State -->
+            <div id="empty-state" class="hidden text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 dark:bg-slate-700/50 flex items-center justify-center text-slate-400 text-2xl">
+                    <i class="fa-solid fa-inbox"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-700 dark:text-slate-200">No polls found</h3>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">Try adjusting your search filters or create a new poll to kick off the voting!</p>
+                <button onclick="app.switchTab('create')" class="mt-4 px-4 py-2 bg-indigo-600 text-white font-medium rounded-xl text-sm shadow-md shadow-indigo-500/20 hover:bg-indigo-700 transition">Create First Poll</button>
+            </div>
+        </section>
+
+        <!-- TAB 2: CREATE POLL FORM -->
+        <section id="tab-create" class="hidden max-w-2xl mx-auto">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 sm:p-8 border border-slate-200 dark:border-slate-700/60 shadow-xl">
+                <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 dark:border-slate-700/50">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-plus-circle"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-800 dark:text-white">Create a New Poll</h2>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Configure your title, options, and live timer.</p>
+                    </div>
+                </div>
+
+                <form id="create-poll-form" onsubmit="app.handleCreatePoll(event)" class="space-y-5">
+                    <!-- Title -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Poll Question / Title <span class="text-rose-500">*</span></label>
+                        <input type="text" id="poll-title" required placeholder="e.g., Which JS framework do you prefer in 2026?" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 transition">
+                    </div>
+
+                    <!-- Description -->
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Description (Optional)</label>
+                        <textarea id="poll-desc" rows="2" placeholder="Add context or details for voters..." class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 transition"></textarea>
+                    </div>
+
+                    <!-- Category & Duration -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Category</label>
+                            <select id="poll-category" class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100">
+                                <option value="Tech">Tech & Coding</option>
+                                <option value="Design">Design & Product</option>
+                                <option value="General">General Interest</option>
+                                <option value="Entertainment">Entertainment</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1">Duration (Minutes)</label>
+                            <input type="number" id="poll-duration" min="1" max="1440" value="15" required class="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100">
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Options -->
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="block text-sm font-semibold text-slate-700 dark:text-slate-300">Poll Options (2 to 6)</label>
+                            <span id="option-count-badge" class="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-full font-mono">2 options</span>
+                        </div>
+                        <div id="options-input-container" class="space-y-2.5">
+                            <!-- Option Inputs Injected via JS -->
+                        </div>
+                        <button type="button" id="add-option-btn" onclick="app.addOptionInput()" class="mt-3 w-full py-2 border-2 border-dashed border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-indigo-500 hover:text-indigo-500 rounded-xl text-sm font-medium transition flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-plus"></i> Add Option
+                        </button>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="pt-4 flex gap-3">
+                        <button type="button" onclick="app.switchTab('polls')" class="flex-1 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-600 transition">Cancel</button>
+                        <button type="submit" class="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold shadow-lg shadow-indigo-500/25 transition">Publish Poll</button>
+                    </div>
+                </form>
+            </div>
+        </section>
+
+        <!-- TAB 3: ANALYTICS & DEEP DIVE -->
+        <section id="tab-analytics" class="hidden space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800 dark:text-white">Poll Analytics & Insights</h2>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Select a poll to analyze real-time dynamic charts and breakdowns.</p>
+                </div>
+                <div class="w-full sm:w-auto">
+                    <select id="analytics-poll-select" onchange="app.renderAnalytics()" class="w-full sm:w-72 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <!-- Options populated via JS -->
+                    </select>
+                </div>
+            </div>
+
+            <!-- Overview Stat Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-users"></i>
+                    </div>
+                    <div>
+                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Total Votes</span>
+                        <h4 id="stat-total-votes" class="text-2xl font-black text-slate-800 dark:text-white">0</h4>
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-trophy"></i>
+                    </div>
+                    <div>
+                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Leading Option</span>
+                        <h4 id="stat-leading-option" class="text-base font-bold text-slate-800 dark:text-white truncate max-w-[180px]">N/A</h4>
+                    </div>
+                </div>
+                <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm flex items-center gap-4">
+                    <div class="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-500 flex items-center justify-center text-xl">
+                        <i class="fa-solid fa-clock"></i>
+                    </div>
+                    <div>
+                        <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Status</span>
+                        <h4 id="stat-poll-status" class="text-base font-bold text-slate-800 dark:text-white">Active</h4>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Container -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Bar Chart -->
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm flex flex-col justify-between">
+                    <h3 class="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-bar text-indigo-500"></i> Vote Distribution (Bar)
+                    </h3>
+                    <div class="relative h-64 w-full flex items-center justify-center">
+                        <canvas id="analytics-bar-chart"></canvas>
+                    </div>
+                </div>
+                <!-- Pie/Doughnut Chart -->
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700/60 shadow-sm flex flex-col justify-between">
+                    <h3 class="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-pink-500"></i> Share Breakdown (Doughnut)
+                    </h3>
+                    <div class="relative h-64 w-full flex items-center justify-center">
+                        <canvas id="analytics-pie-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- SHARE & QR CODE MODAL -->
+    <div id="share-modal" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm hidden p-4">
+        <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 max-w-md w-full border border-slate-200 dark:border-slate-700 shadow-2xl relative">
+            <button onclick="app.closeShareModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-lg">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <div class="text-center">
+                <div class="w-12 h-12 bg-indigo-500/10 text-indigo-500 rounded-xl mx-auto flex items-center justify-center text-xl mb-3">
+                    <i class="fa-solid fa-share-nodes"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800 dark:text-white">Share this Poll</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Scan QR code or copy direct voting link.</p>
+                
+                <!-- QR Code Display Area -->
+                <div id="qrcode-container" class="my-5 p-4 bg-white rounded-xl inline-block shadow-inner border border-slate-200"></div>
+
+                <!-- Link & Copy Button -->
+                <div class="flex items-center gap-2 bg-slate-100 dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <input type="text" id="share-link-input" readonly class="bg-transparent text-xs text-slate-600 dark:text-slate-300 w-full focus:outline-none px-2 font-mono">
+                    <button onclick="app.copyShareLink()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold shrink-0 transition">
+                        <i class="fa-solid fa-copy mr-1"></i>Copy
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN JAVASCRIPT APPLICATION LOGIC -->
+    <script>
+        /**
+         * PulseVote Core Engine
+         * Built with defensive error-handling wrappers and safe LocalStorage operations.
+         */
+        const PALETTE = [
+            '#6366f1', '#ec4899', '#10b981', '#f59e0b', 
+            '#8b5cf6', '#06b6d4', '#3b82f6', '#ef4444'
+        ];
+
+        class PulseVoteApp {
+            constructor() {
+                this.polls = [];
+                this.currentUser = 'User_' + Math.floor(Math.random() * 8999 + 1000);
+                this.isSimulating = false;
+                this.simulationInterval = null;
+                this.timerInterval = null;
+                this.barChartInstance = null;
+                this.pieChartInstance = null;
+
+                // Bind safety context
+                this.safeExec = this.safeExec.bind(this);
+            }
+
+            // Centralized Defensive Wrapper to prevent app crashes
+            safeExec(fn, errorMessage = "An error occurred in operation.") {
+                try {
+                    return fn();
+                } catch (err) {
+                    console.error("[PulseVote Error Guard]:", err);
+                    this.showToast(errorMessage, "error");
+                    return null;
+                }
+            }
+
+            // Initialize Application
+            init() {
+                this.safeExec(() => {
+                    this.loadTheme();
+                    this.loadState();
+                    this.seedInitialData();
+                    this.setupFormOptions();
+                    this.renderPolls();
+                    this.startGlobalTimers();
+                    this.updateUserDisplay();
+                }, "Failed to initialize application core.");
+            }
+
+            // Theme Management
+            loadTheme() {
+                const savedTheme = localStorage.getItem('pv_theme') || 'dark';
+                if (savedTheme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    document.getElementById('theme-icon').className = 'fa-solid fa-sun';
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    document.getElementById('theme-icon').className = 'fa-solid fa-moon';
+                }
+            }
+
+            toggleTheme() {
+                this.safeExec(() => {
+                    const isDark = document.documentElement.classList.toggle('dark');
+                    localStorage.setItem('pv_theme', isDark ? 'dark' : 'light');
+                    document.getElementById('theme-icon').className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+                    if (this.barChartInstance) this.renderAnalytics(); // Redraw chart theme
+                });
+            }
+
+            // LocalStorage State Management
+            loadState() {
+                try {
+                    const storedPolls = localStorage.getItem('pv_polls');
+                    if (storedPolls) {
+                        this.polls = JSON.parse(storedPolls);
+                    }
+                } catch (e) {
+                    console.warn("LocalStorage corrupted, resetting poll store.");
+                    this.polls = [];
+                }
+            }
+
+            saveState() {
+                try {
+                    localStorage.setItem('pv_polls', JSON.stringify(this.polls));
+                } catch (e) {
+                    this.showToast("Failed to persist data locally.", "warning");
+                }
+            }
+
+            // Seed initial mock polls if storage empty
+            seedInitialData() {
+                if (this.polls.length === 0) {
+                    const now = Date.now();
+                    this.polls = [
+                        {
+                            id: 'poll-1',
+                            title: 'Which Web Framework do you use most in 2026?',
+                            description: 'Comparing real-world adoption across production projects.',
+                            category: 'Tech',
+                            createdAt: now,
+                            expiresAt: now + (45 * 60 * 1000), // 45 mins active
+                            options: [
+                                { id: 'opt-1', text: 'React / Next.js', votes: 42 },
+                                { id: 'opt-2', text: 'Vue / Nuxt', votes: 28 },
+                                { id: 'opt-3', text: 'SvelteKit', votes: 19 },
+                                { id: 'opt-4', text: 'Solid / Angular', votes: 11 }
+                            ],
+                            voterMap: {}
+                        },
+                        {
+                            id: 'poll-2',
+                            title: 'Preferred Work Model for Tech Teams',
+                            description: 'Vote on ideal work arrangement setup.',
+                            category: 'General',
+                            createdAt: now - (60 * 60 * 1000),
+                            expiresAt: now - (5 * 60 * 1000), // Ended poll
+                            options: [
+                                { id: 'opt-10', text: '100% Remote', votes: 85 },
+                                { id: 'opt-11', text: 'Hybrid (2-3 days office)', votes: 54 },
+                                { id: 'opt-12', text: 'Full In-Office', votes: 6 }
+                            ],
+                            voterMap: {}
+                        }
+                    ];
+                    this.saveState();
+                }
+            }
+
+            // User Identity Switcher (for local duplicate testing)
+            switchUserIdentity() {
+                this.currentUser = 'User_' + Math.floor(Math.random() * 8999 + 1000);
+                this.updateUserDisplay();
+                this.showToast(`Switched user profile to ${this.currentUser}`, "info");
+                this.renderPolls();
+            }
+
+            resetUserVotes() {
+                this.safeExec(() => {
+                    this.polls.forEach(poll => {
+                        if (poll.voterMap && poll.voterMap[this.currentUser]) {
+                            delete poll.voterMap[this.currentUser];
+                        }
+                    });
+                    this.saveState();
+                    this.renderPolls();
+                    this.showToast("Your vote records were reset for testing.", "success");
+                });
+            }
+
+            updateUserDisplay() {
+                const elem = document.getElementById('current-user-display');
+                if (elem) elem.innerText = this.currentUser;
+            }
+
+            // Tab Switching Navigation
+            switchTab(tabKey) {
+                this.safeExec(() => {
+                    ['polls', 'create', 'analytics'].forEach(key => {
+                        const tabElem = document.getElementById(`tab-${key}`);
+                        const navElem = document.getElementById(`nav-${key}`);
+                        const mobNavElem = document.getElementById(`mob-nav-${key}`);
+
+                        if (key === tabKey) {
+                            tabElem.classList.remove('hidden');
+                            if (navElem) navElem.className = "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-slate-700 shadow-sm";
+                            if (mobNavElem) mobNavElem.className = "flex flex-col items-center gap-1 text-xs font-medium text-indigo-500";
+                        } else {
+                            tabElem.classList.add('hidden');
+                            if (navElem) navElem.className = "px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100";
+                            if (mobNavElem) mobNavElem.className = "flex flex-col items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400";
+                        }
+                    });
+
+                    if (tabKey === 'analytics') {
+                        this.populateAnalyticsDropdown();
+                        this.renderAnalytics();
+                    }
+                });
+            }
+
+            // Render Polls Cards
+            renderPolls() {
+                this.safeExec(() => {
+                    const container = document.getElementById('polls-container');
+                    const emptyState = document.getElementById('empty-state');
+                    if (!container) return;
+
+                    const search = (document.getElementById('search-input')?.value || '').toLowerCase();
+                    const filterStatus = document.getElementById('filter-status')?.value || 'all';
+                    const sortBy = document.getElementById('sort-by')?.value || 'newest';
+
+                    const now = Date.now();
+
+                    // Filter Logic
+                    let filtered = this.polls.filter(poll => {
+                        const matchesSearch = poll.title.toLowerCase().includes(search) || 
+                                              (poll.description && poll.description.toLowerCase().includes(search));
+                        const isActive = poll.expiresAt > now;
+                        
+                        if (!matchesSearch) return false;
+                        if (filterStatus === 'active') return isActive;
+                        if (filterStatus === 'ended') return !isActive;
+                        return true;
+                    });
+
+                    // Sorting Logic
+                    filtered.sort((a, b) => {
+                        const totalVotesA = a.options.reduce((sum, o) => sum + o.votes, 0);
+                        const totalVotesB = b.options.reduce((sum, o) => sum + o.votes, 0);
+
+                        if (sortBy === 'most-votes') return totalVotesB - totalVotesA;
+                        if (sortBy === 'ending-soon') return a.expiresAt - b.expiresAt;
+                        return b.createdAt - a.createdAt; // Newest
+                    });
+
+                    if (filtered.length === 0) {
+                        container.innerHTML = '';
+                        emptyState.classList.remove('hidden');
+                        return;
+                    }
+
+                    emptyState.classList.add('hidden');
+                    container.innerHTML = filtered.map(poll => this.createPollCardHTML(poll, now)).join('');
+                }, "Error rendering polls display.");
+            }
+
+            // Generate HTML for individual Poll
+            createPollCardHTML(poll, now) {
+                const isActive = poll.expiresAt > now;
+                const totalVotes = poll.options.reduce((sum, opt) => sum + opt.votes, 0);
+                const hasVoted = poll.voterMap && poll.voterMap[this.currentUser];
+                const selectedOptId = hasVoted ? poll.voterMap[this.currentUser] : null;
+
+                const statusBadge = isActive 
+                    ? `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Active</span>`
+                    : `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"><i class="fa-solid fa-lock text-[10px]"></i> Ended</span>`;
+
+                const timeRemainingText = isActive ? this.formatTimeDiff(poll.expiresAt - now) : 'Closed';
+
+                // Option Bar Builder
+                const optionsHTML = poll.options.map((opt, idx) => {
+                    const percent = totalVotes > 0 ? Math.round((opt.votes / totalVotes) * 100) : 0;
+                    const isSelected = selectedOptId === opt.id;
+                    const color = PALETTE[idx % PALETTE.length];
+
+                    return `
+                        <div class="relative group">
+                            <button 
+                                onclick="app.castVote('${poll.id}', '${opt.id}')"
+                                ${!isActive ? 'disabled' : ''}
+                                class="w-full text-left p-3.5 rounded-xl border transition-all duration-200 relative overflow-hidden flex flex-col justify-between gap-2 ${
+                                    isSelected 
+                                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 ring-2 ring-indigo-500/30' 
+                                    : 'border-slate-200 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-900/50 hover:border-slate-300 dark:hover:border-slate-600'
+                                } ${!isActive ? 'cursor-not-allowed opacity-90' : 'cursor-pointer'}"
+                            >
+                                <!-- Visual Animated Progress Bar Overlay -->
+                                <div class="absolute left-0 top-0 bottom-0 bg-opacity-15 dark:bg-opacity-25 animate-bar rounded-xl"
+                                     style="width: ${percent}%; background-color: ${color}; opacity: 0.15;"></div>
+
+                                <div class="flex justify-between items-center z-10 w-full gap-2">
+                                    <span class="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                        ${isSelected ? `<i class="fa-solid fa-circle-check text-indigo-500"></i>` : ''}
+                                        ${this.escapeHTML(opt.text)}
+                                    </span>
+                                    <span class="text-xs font-mono font-bold text-slate-600 dark:text-slate-400">${percent}%</span>
+                                </div>
+
+                                <!-- Vote count & ratio bar -->
+                                <div class="flex items-center justify-between z-10 w-full text-xs text-slate-400 font-medium">
+                                    <div class="w-full bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mr-3">
+                                        <div class="h-full rounded-full transition-all duration-500" style="width: ${percent}%; background-color: ${color}"></div>
+                                    </div>
+                                    <span class="shrink-0">${opt.votes} ${opt.votes === 1 ? 'vote' : 'votes'}</span>
+                                </div>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+                return `
+                    <div class="bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700/60 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between gap-2 mb-3">
+                                <span class="text-xs font-semibold px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">${poll.category || 'General'}</span>
+                                ${statusBadge}
+                            </div>
+                            <h3 class="text-lg font-bold text-slate-900 dark:text-white leading-snug">${this.escapeHTML(poll.title)}</h3>
+                            ${poll.description ? `<p class="text-xs text-slate-500 dark:text-slate-400 mt-1 mb-4 line-clamp-2">${this.escapeHTML(poll.description)}</p>` : '<div class="mb-4"></div>'}
+                            
+                            <!-- Options List -->
+                            <div class="space-y-2.5 my-4">
+                                ${optionsHTML}
+                            </div>
+                        </div>
+
+                        <!-- Card Footer -->
+                        <div class="pt-4 mt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                            <div class="flex items-center gap-3">
+                                <span><i class="fa-solid fa-users text-slate-400 mr-1"></i>${totalVotes} total votes</span>
+                                <span><i class="fa-regular fa-clock text-slate-400 mr-1"></i>${timeRemainingText}</span>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <button onclick="app.openShareModal('${poll.id}')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition text-slate-500 hover:text-indigo-500" title="Share Poll">
+                                    <i class="fa-solid fa-share-nodes"></i>
+                                </button>
+                                <button onclick="app.exportPollData('${poll.id}')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition text-slate-500 hover:text-indigo-500" title="Export JSON">
+                                    <i class="fa-solid fa-download"></i>
+                                </button>
+                                <button onclick="app.deletePoll('${poll.id}')" class="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition text-slate-500 hover:text-rose-500" title="Delete Poll">
+                                    <i class="fa-solid fa-trash-can"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Cast Vote Handler
+            castVote(pollId, optionId) {
+                this.safeExec(() => {
+                    const poll = this.polls.find(p => p.id === pollId);
+                    if (!poll) return;
+
+                    if (Date.now() > poll.expiresAt) {
+                        this.showToast("Voting is closed for this poll.", "warning");
+                        return;
+                    }
+
+                    if (!poll.voterMap) poll.voterMap = {};
+
+                    const existingVote = poll.voterMap[this.currentUser];
+                    if (existingVote === optionId) {
+                        this.showToast("You already voted for this option!", "info");
+                        return;
+                    }
+
+                    // Decrement existing vote if changing selection
+                    if (existingVote) {
+                        const prevOption = poll.options.find(o => o.id === existingVote);
+                        if (prevOption && prevOption.votes > 0) prevOption.votes--;
+                    }
+
+                    // Increment new vote
+                    const option = poll.options.find(o => o.id === optionId);
+                    if (option) {
+                        option.votes++;
+                        poll.voterMap[this.currentUser] = optionId;
+                        this.saveState();
+
+                        // Audio/Visual Feedback
+                        this.playVoteFeedback();
+                        this.triggerConfetti();
+                        
+                        this.renderPolls();
+                        this.showToast(existingVote ? "Your vote was updated!" : "Vote recorded successfully!", "success");
+                    }
+                }, "Failed to record vote.");
+            }
+
+            // Play procedural audio feedback safely without external assets
+            playVoteFeedback() {
+                try {
+                    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5 tone
+                    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1); // A5 pitch shift
+                    
+                    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
+                    
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.15);
+                } catch (e) {
+                    // Audio context blocked or unsupported; silent fallback
+                }
+            }
+
+            triggerConfetti() {
+                try {
+                    if (typeof confetti === 'function') {
+                        confetti({
+                            particleCount: 30,
+                            spread: 60,
+                            origin: { y: 0.85 },
+                            colors: ['#6366f1', '#10b981', '#ec4899']
+                        });
+                    }
+                } catch (e) {
+                    // Confetti fail guard
+                }
+            }
+
+            // Dynamic Form Input Management for Create Poll
+            setupFormOptions() {
+                const container = document.getElementById('options-input-container');
+                if (!container) return;
+                container.innerHTML = '';
+                
+                // Add initial 2 default options
+                this.addOptionInput('Option 1');
+                this.addOptionInput('Option 2');
+            }
+
+            addOptionInput(value = '') {
+                this.safeExec(() => {
+                    const container = document.getElementById('options-input-container');
+                    if (!container) return;
+                    
+                    const count = container.children.length;
+                    if (count >= 6) {
+                        this.showToast("Maximum 6 options allowed per poll.", "warning");
+                        return;
+                    }
+
+                    const optId = `input-opt-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`;
+                    const wrapper = document.createElement('div');
+                    wrapper.className = "flex items-center gap-2 group";
+                    wrapper.innerHTML = `
+                        <input type="text" required placeholder="Option ${count + 1}" value="${this.escapeHTML(value)}" 
+                            class="poll-option-input flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-800 dark:text-slate-100 transition">
+                        ${count >= 2 ? `
+                            <button type="button" onclick="this.parentElement.remove(); app.updateOptionBadges();" class="p-2.5 text-slate-400 hover:text-rose-500 transition">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        ` : '<div class="w-9"></div>'}
+                    `;
+                    container.appendChild(wrapper);
+                    this.updateOptionBadges();
+                });
+            }
+
+            updateOptionBadges() {
+                const container = document.getElementById('options-input-container');
+                const badge = document.getElementById('option-count-badge');
+                if (container && badge) {
+                    badge.innerText = `${container.children.length} options`;
+                }
+            }
+
+            // Create Poll Submit Handler
+            handleCreatePoll(e) {
+                e.preventDefault();
+                this.safeExec(() => {
+                    const title = document.getElementById('poll-title').value.trim();
+                    const description = document.getElementById('poll-desc').value.trim();
+                    const category = document.getElementById('poll-category').value;
+                    const durationMins = parseInt(document.getElementById('poll-duration').value, 10) || 15;
+
+                    const optionInputs = document.querySelectorAll('.poll-option-input');
+                    const options = [];
+
+                    optionInputs.forEach((input, i) => {
+                        const val = input.value.trim();
+                        if (val) {
+                            options.push({
+                                id: `opt-${Date.now()}-${i}`,
+                                text: val,
+                                votes: 0
+                            });
+                        }
+                    });
+
+                    if (options.length < 2) {
+                        this.showToast("Please provide at least 2 valid options.", "error");
+                        return;
+                    }
+
+                    const newPoll = {
+                        id: `poll-${Date.now()}`,
+                        title,
+                        description,
+                        category,
+                        createdAt: Date.now(),
+                        expiresAt: Date.now() + (durationMins * 60 * 1000),
+                        options,
+                        voterMap: {}
+                    };
+
+                    this.polls.unshift(newPoll);
+                    this.saveState();
+
+                    // Reset form and return to polls view
+                    document.getElementById('create-poll-form').reset();
+                    this.setupFormOptions();
+                    this.switchTab('polls');
+                    this.showToast("New poll published successfully!", "success");
+                }, "Failed to create poll.");
+            }
+
+            deletePoll(pollId) {
+                this.safeExec(() => {
+                    this.polls = this.polls.filter(p => p.id !== pollId);
+                    this.saveState();
+                    this.renderPolls();
+                    this.showToast("Poll deleted.", "info");
+                });
+            }
+
+            // Real-Time Voting Simulation Toggle
+            toggleSimulation() {
+                this.safeExec(() => {
+                    this.isSimulating = !this.isSimulating;
+                    const btn = document.getElementById('sim-toggle-btn');
+                    const dot = document.getElementById('sim-dot');
+                    const ping = document.getElementById('sim-ping');
+                    const text = document.getElementById('sim-text');
+
+                    if (this.isSimulating) {
+                        btn.classList.replace('bg-amber-500/10', 'bg-emerald-500/20');
+                        btn.classList.replace('text-amber-600', 'text-emerald-500');
+                        dot.classList.replace('bg-amber-500', 'bg-emerald-500');
+                        ping.classList.remove('hidden');
+                        if (text) text.innerText = 'Simulating Live';
+
+                        this.simulationInterval = setInterval(() => this.runSimulatedVote(), 2500);
+                        this.showToast("Real-time live vote simulation started!", "info");
+                    } else {
+                        btn.classList.replace('bg-emerald-500/20', 'bg-amber-500/10');
+                        btn.classList.replace('text-emerald-500', 'text-amber-600');
+                        dot.classList.replace('bg-emerald-500', 'bg-amber-500');
+                        ping.classList.add('hidden');
+                        if (text) text.innerText = 'Simulate Live';
+
+                        clearInterval(this.simulationInterval);
+                        this.showToast("Simulation stopped.", "info");
+                    }
+                });
+            }
+
+            runSimulatedVote() {
+                this.safeExec(() => {
+                    const now = Date.now();
+                    const activePolls = this.polls.filter(p => p.expiresAt > now);
+                    if (activePolls.length === 0) return;
+
+                    // Pick random active poll & random option
+                    const targetPoll = activePolls[Math.floor(Math.random() * activePolls.length)];
+                    const randomOption = targetPoll.options[Math.floor(Math.random() * targetPoll.options.length)];
+                    
+                    randomOption.votes++;
+                    this.saveState();
+                    
+                    // Render dynamically if on main page or analytics
+                    const activeTab = document.querySelector('section:not(.hidden)')?.id;
+                    if (activeTab === 'tab-polls') {
+                        this.renderPolls();
+                    } else if (activeTab === 'tab-analytics') {
+                        this.renderAnalytics();
+                    }
+                });
+            }
+
+            // Global timer ticker for live status count down
+            startGlobalTimers() {
+                this.timerInterval = setInterval(() => {
+                    this.safeExec(() => {
+                        const activeTab = document.querySelector('section:not(.hidden)')?.id;
+                        if (activeTab === 'tab-polls') {
+                            this.renderPolls();
+                        }
+                    });
+                }, 10000); // Ticks every 10 sec to refresh UI timers
+            }
+
+            formatTimeDiff(ms) {
+                if (ms <= 0) return 'Ended';
+                const mins = Math.floor(ms / (1000 * 60));
+                const hours = Math.floor(mins / 60);
+                
+                if (hours > 0) {
+                    const remainingMins = mins % 60;
+                    return `${hours}h ${remainingMins}m left`;
+                }
+                return `${mins}m left`;
+            }
+
+            // ANALYTICS TAB ENGINE
+            populateAnalyticsDropdown() {
+                const select = document.getElementById('analytics-poll-select');
+                if (!select) return;
+                
+                select.innerHTML = this.polls.map(p => `
+                    <option value="${p.id}">${this.escapeHTML(p.title)}</option>
+                `).join('');
+            }
+
+            renderAnalytics() {
+                this.safeExec(() => {
+                    const select = document.getElementById('analytics-poll-select');
+                    if (!select || this.polls.length === 0) return;
+
+                    const pollId = select.value || this.polls[0].id;
+                    const poll = this.polls.find(p => p.id === pollId) || this.polls[0];
+
+                    const totalVotes = poll.options.reduce((sum, o) => sum + o.votes, 0);
+                    const leadingOpt = [...poll.options].sort((a, b) => b.votes - a.votes)[0];
+                    const isActive = poll.expiresAt > Date.now();
+
+                    // Update Top Summary Stats
+                    document.getElementById('stat-total-votes').innerText = totalVotes;
+                    document.getElementById('stat-leading-option').innerText = totalVotes > 0 ? leadingOpt.text : 'No votes yet';
+                    document.getElementById('stat-poll-status').innerText = isActive ? 'Active' : 'Ended';
+                    document.getElementById('stat-poll-status').className = `text-base font-bold ${isActive ? 'text-emerald-500' : 'text-rose-500'}`;
+
+                    // Destroy old charts
+                    if (this.barChartInstance) this.barChartInstance.destroy();
+                    if (this.pieChartInstance) this.pieChartInstance.destroy();
+
+                    const labels = poll.options.map(o => o.text);
+                    const data = poll.options.map(o => o.votes);
+                    const colors = PALETTE.slice(0, poll.options.length);
+
+                    const isDark = document.documentElement.classList.contains('dark');
+                    const textColor = isDark ? '#94a3b8' : '#64748b';
+
+                    // Bar Chart
+                    const ctxBar = document.getElementById('analytics-bar-chart')?.getContext('2d');
+                    if (ctxBar) {
+                        this.barChartInstance = new Chart(ctxBar, {
+                            type: 'bar',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    label: 'Votes',
+                                    data: data,
+                                    backgroundColor: colors,
+                                    borderRadius: 8
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: { legend: { display: false } },
+                                scales: {
+                                    x: { ticks: { color: textColor } },
+                                    y: { ticks: { color: textColor }, beginAtZero: true }
+                                }
+                            }
+                        });
+                    }
+
+                    // Pie / Doughnut Chart
+                    const ctxPie = document.getElementById('analytics-pie-chart')?.getContext('2d');
+                    if (ctxPie) {
+                        this.pieChartInstance = new Chart(ctxPie, {
+                            type: 'doughnut',
+                            data: {
+                                labels: labels,
+                                datasets: [{
+                                    data: data,
+                                    backgroundColor: colors,
+                                    borderWidth: 0
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    legend: { position: 'bottom', labels: { color: textColor, boxWidth: 12 } }
+                                }
+                            }
+                        });
+                    }
+                }, "Failed to render analytics visualizer.");
+            }
+
+            // Export Data Feature
+            exportPollData(pollId) {
+                this.safeExec(() => {
+                    const poll = this.polls.find(p => p.id === pollId);
+                    if (!poll) return;
+
+                    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(poll, null, 2));
+                    const downloadAnchor = document.createElement('a');
+                    downloadAnchor.setAttribute("href", dataStr);
+                    downloadAnchor.setAttribute("download", `poll_${poll.id}_results.json`);
+                    document.body.appendChild(downloadAnchor);
+                    downloadAnchor.click();
+                    downloadAnchor.remove();
+                    this.showToast("Exported poll data to JSON.", "success");
+                });
+            }
+
+            // Share & QR Modal Manager
+            openShareModal(pollId) {
+                this.safeExec(() => {
+                    const poll = this.polls.find(p => p.id === pollId);
+                    if (!poll) return;
+
+                    const modal = document.getElementById('share-modal');
+                    const qrContainer = document.getElementById('qrcode-container');
+                    const linkInput = document.getElementById('share-link-input');
+
+                    const shareUrl = `${window.location.origin}${window.location.pathname}?pollId=${poll.id}`;
+                    linkInput.value = shareUrl;
+
+                    qrContainer.innerHTML = '';
+                    if (typeof QRCode !== 'undefined') {
+                        new QRCode(qrContainer, {
+                            text: shareUrl,
+                            width: 128,
+                            height: 128,
+                            colorDark: "#0f172a",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.H
+                        });
+                    }
+
+                    modal.classList.remove('hidden');
+                });
+            }
+
+            closeShareModal() {
+                document.getElementById('share-modal')?.classList.add('hidden');
+            }
+
+            copyShareLink() {
+                this.safeExec(() => {
+                    const input = document.getElementById('share-link-input');
+                    if (input) {
+                        input.select();
+                        document.execCommand('copy');
+                        this.showToast("Shareable link copied to clipboard!", "success");
+                    }
+                });
+            }
+
+            // Toast Alert Notification System
+            showToast(message, type = "info") {
+                const container = document.getElementById('toast-container');
+                if (!container) return;
+
+                const toast = document.createElement('div');
+                const colors = {
+                    success: 'bg-emerald-600 text-white',
+                    error: 'bg-rose-600 text-white',
+                    warning: 'bg-amber-500 text-white',
+                    info: 'bg-indigo-600 text-white'
+                };
+
+                toast.className = `p-3.5 rounded-xl shadow-xl text-xs sm:text-sm font-semibold flex items-center justify-between gap-3 transform transition-all duration-300 translate-y-2 opacity-0 pointer-events-auto ${colors[type] || colors.info}`;
+                toast.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid ${type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-triangle-exclamation' : 'fa-circle-info'}"></i>
+                        <span>${this.escapeHTML(message)}</span>
+                    </div>
+                    <button onclick="this.parentElement.remove()" class="text-white/80 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                `;
+
+                container.appendChild(toast);
+
+                // Animate entrance
+                requestAnimationFrame(() => {
+                    toast.classList.remove('translate-y-2', 'opacity-0');
+                });
+
+                // Auto dismiss
+                setTimeout(() => {
+                    toast.classList.add('opacity-0', 'translate-y-2');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3500);
+            }
+
+            // Helper sanitizers
+            escapeHTML(str) {
+                if (!str) return '';
+                return String(str).replace(/[&<>"']/g, match => {
+                    return {
+                        '&': '&amp;',
+                        '<': '&lt;',
+                        '>': '&gt;',
+                        '"': '&quot;',
+                        "'": '&#39;'
+                    }[match];
+                });
+            }
+        }
+
+        // Initialize App instance on load
+        let app;
+        window.addEventListener('DOMContentLoaded', () => {
+            app = new PulseVoteApp();
+            app.init();
+        });
+    </script>
+</body>
+</html>
