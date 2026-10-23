@@ -3,187 +3,166 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Real-Time Live Poll & Analytics</title>
+  <title>LivePulse - 7-Day Real-Time Polls</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-  <!-- Firebase SDKs -->
+  <!-- Firebase Compat Libraries -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans antialiased">
 
-  <!-- Header -->
-  <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-40">
-    <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
-      <div class="flex items-center space-x-3">
+  <!-- Header Navigation -->
+  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-4xl mx-auto px-4 py-3 flex justify-between items-center">
+      <div class="flex items-center space-x-3 cursor-pointer" onclick="resetToHome()">
         <div class="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/30">
-          <i class="fa-solid fa-chart-simple"></i>
+          <i class="fa-solid fa-chart-pie"></i>
         </div>
         <div>
-          <h1 class="font-bold text-base md:text-lg leading-tight">LivePulse Polls</h1>
-          <p class="text-xs text-slate-400">Real-Time Response Engine</p>
+          <h1 class="font-bold text-base leading-tight text-white">LivePulse Polls</h1>
+          <p class="text-xs text-slate-400">7-Day Shareable Response Engine</p>
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <button id="configBtn" onclick="openConfigModal()" class="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-md border border-slate-700 transition flex items-center gap-1.5">
-          <i class="fa-solid fa-gear text-indigo-400"></i> Firebase Config
+        <button onclick="openConfigModal()" class="px-3 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-database text-indigo-400"></i> Cloud Sync
         </button>
-        <button id="resetAppBtn" onclick="resetToHome()" class="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-md transition flex items-center gap-1.5 hidden">
+        <button id="newPollNavBtn" onclick="resetToHome()" class="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg transition flex items-center gap-1.5 hidden">
           <i class="fa-solid fa-plus"></i> New Poll
         </button>
       </div>
     </div>
   </header>
 
-  <!-- Notification Banner -->
+  <!-- Notification Toast -->
   <div id="toast" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
     <div id="toastContent" class="bg-indigo-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-sm font-medium">
       <i id="toastIcon" class="fa-solid fa-circle-check"></i>
-      <span id="toastMsg">Notification message</span>
+      <span id="toastMsg">Action completed successfully</span>
     </div>
   </div>
 
-  <main class="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6">
+  <main class="flex-1 max-w-3xl w-full mx-auto p-4 md:p-6">
 
-    <!-- VIEW 1: CREATE POLL FORM -->
+    <!-- VIEW 1: CREATE POLL -->
     <section id="createView" class="space-y-6">
-      <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 md:p-8 backdrop-blur shadow-xl">
+      <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 md:p-8 backdrop-blur shadow-2xl">
         <div class="mb-6">
           <h2 class="text-xl font-bold text-white flex items-center gap-2">
-            <i class="fa-solid fa-pen-to-square text-indigo-400"></i> Create a 7-Day Live Poll
+            <i class="fa-solid fa-square-plus text-indigo-400"></i> Create a New Poll
           </h2>
-          <p class="text-slate-400 text-sm mt-1">
-            Links sustain active voting for up to 7 days (or 100 responses).
+          <p class="text-slate-400 text-xs mt-1">
+            Generated links remain active for exactly <strong class="text-indigo-300">7 days</strong> or up to <strong class="text-indigo-300">100 responses</strong>.
           </p>
         </div>
 
-        <form id="pollForm" onsubmit="handleCreatePoll(event)" class="space-y-5">
+        <form onsubmit="handleCreatePoll(event)" class="space-y-5">
           <div>
             <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Poll Question</label>
-            <input type="text" id="pollQuestion" required placeholder="e.g., What framework should we use for the next project?"
-              class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-white placeholder-slate-500 text-sm outline-none transition" />
+            <input type="text" id="pollQuestion" required placeholder="e.g., Which feature should we prioritize next week?"
+              class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-500 text-sm outline-none transition" />
           </div>
 
           <div>
-            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Options</label>
+            <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Options (At least 2 required)</label>
             <div id="optionsContainer" class="space-y-2.5">
-              <input type="text" required placeholder="Option 1" class="poll-option-input w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-500 text-sm outline-none transition" />
-              <input type="text" required placeholder="Option 2" class="poll-option-input w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-500 text-sm outline-none transition" />
+              <input type="text" required placeholder="Option 1" class="poll-option-input w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-500 text-sm outline-none" />
+              <input type="text" required placeholder="Option 2" class="poll-option-input w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-500 text-sm outline-none" />
             </div>
             <button type="button" onclick="addOptionInput()" class="mt-3 text-xs font-semibold text-indigo-400 hover:text-indigo-300 flex items-center gap-1.5 transition">
-              <i class="fa-solid fa-plus-circle"></i> Add Another Option
+              <i class="fa-solid fa-circle-plus"></i> Add Option
             </button>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Duration Limit</label>
-              <select id="pollDuration" class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="7">7 Days (Standard)</option>
-                <option value="2">48 Hours</option>
-                <option value="1">24 Hours</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-2">Response Cap</label>
-              <select id="pollMaxResponses" class="w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                <option value="100">100 Responses</option>
-                <option value="250">250 Responses</option>
-                <option value="500">500 Responses</option>
-              </select>
-            </div>
+          <div class="pt-2">
+            <button type="submit" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2 text-sm">
+              <i class="fa-solid fa-link"></i> Create Poll & Generate Shareable Link
+            </button>
           </div>
-
-          <button type="submit" id="submitBtn" class="w-full py-3.5 bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2 text-sm mt-4">
-            <i class="fa-solid fa-bolt"></i> Generate Poll & Shareable Link
-          </button>
         </form>
       </div>
     </section>
 
-    <!-- VIEW 2: ACTIVE POLL & RESULTS INTERFACE -->
+    <!-- VIEW 2: ACTIVE POLL INTERFACE -->
     <section id="activePollView" class="space-y-6 hidden">
-      <!-- Status Card -->
-      <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 backdrop-blur shadow-xl">
-        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-700/60 pb-5">
+      <!-- Poll Metadata Banner -->
+      <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 backdrop-blur shadow-xl">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-700 pb-5">
           <div>
-            <div class="flex items-center gap-2 mb-1">
+            <div class="flex items-center gap-2 mb-2">
               <span id="pollStatusBadge" class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                ● Live Voting
+                ● Active Poll
               </span>
-              <span id="expiryBadge" class="text-xs text-slate-400 font-medium"></span>
+              <span id="expiryBadge" class="text-xs text-slate-400 font-mono">7 Days Remaining</span>
             </div>
-            <h2 id="activeQuestion" class="text-xl md:text-2xl font-bold text-white mt-1"></h2>
+            <h2 id="activeQuestion" class="text-xl md:text-2xl font-bold text-white"></h2>
           </div>
 
-          <!-- Total Counter -->
-          <div class="bg-slate-900/80 px-4 py-2.5 rounded-xl border border-slate-700/80 text-center min-w-[120px]">
-            <span class="text-xs text-slate-400 font-semibold uppercase tracking-wider block">Total Votes</span>
+          <div class="bg-slate-900 px-4 py-2.5 rounded-xl border border-slate-700 text-center min-w-[110px]">
+            <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-wider block">Total Votes</span>
             <span id="totalVotesCount" class="text-xl font-extrabold text-indigo-400">0</span>
           </div>
         </div>
 
-        <!-- Share & Link Controls -->
-        <div class="mt-5 space-y-3">
-          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">Shareable Active Poll URL</label>
+        <!-- Share URL Bar -->
+        <div class="mt-5 space-y-2">
+          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">Share This Link With Voters</label>
           <div class="flex flex-col sm:flex-row gap-2">
-            <input type="text" id="shareUrlInput" readonly class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-indigo-300 font-mono outline-none focus:ring-1 focus:ring-indigo-500" />
-            <button onclick="copyShareUrl()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 whitespace-nowrap">
+            <input type="text" id="shareUrlInput" readonly class="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-indigo-300 font-mono outline-none" />
+            <button onclick="copyShareUrl()" class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
               <i class="fa-solid fa-copy"></i> Copy Link
             </button>
-            <button onclick="toggleQrModal()" class="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5 whitespace-nowrap">
-              <i class="fa-solid fa-qrcode"></i> QR Code
+            <button onclick="toggleQrModal()" class="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-qrcode"></i> QR
             </button>
           </div>
         </div>
       </div>
 
-      <!-- Voting & Visualization Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Voting Options & Live Circle Distribution -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-        <!-- Left Column: Voting Buttons -->
-        <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 backdrop-blur shadow-xl">
-          <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <i class="fa-solid fa-check-to-slot text-indigo-400"></i> Cast Your Vote
+        <!-- Options / Voting Buttons -->
+        <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 backdrop-blur shadow-xl">
+          <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <i class="fa-solid fa-check-to-slot text-indigo-400"></i> Options
           </h3>
           <div id="votingOptionsList" class="space-y-3">
-            <!-- Dynamic Buttons render here -->
+            <!-- Buttons injected dynamically -->
           </div>
-          <div id="alreadyVotedNotice" class="hidden mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center text-xs text-amber-300">
-            <i class="fa-solid fa-circle-info mr-1"></i> You have cast your response on this browser session.
+          <div id="votedAlert" class="hidden mt-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center text-xs text-amber-300">
+            <i class="fa-solid fa-info-circle mr-1"></i> Response recorded for this session.
           </div>
         </div>
 
-        <!-- Right Column: Real-Time Results Visualization -->
-        <div class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-6 backdrop-blur shadow-xl flex flex-col">
+        <!-- Dynamic Results Visualization -->
+        <div class="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-6 backdrop-blur shadow-xl flex flex-col">
           <div class="flex items-center justify-between mb-4">
-            <h3 class="text-sm font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
               <i class="fa-solid fa-chart-pie text-indigo-400"></i> Live Distribution
             </h3>
-            <!-- Format Switcher -->
             <div class="flex bg-slate-900 rounded-lg p-1 border border-slate-700 text-xs">
-              <button onclick="switchFormat('doughnut')" id="fmtDoughnut" class="px-2.5 py-1 rounded-md transition font-medium text-slate-400">Circle</button>
-              <button onclick="switchFormat('bar')" id="fmtBar" class="px-2.5 py-1 rounded-md transition font-medium text-slate-400">Bar</button>
-              <button onclick="switchFormat('list')" id="fmtList" class="px-2.5 py-1 rounded-md transition font-medium text-slate-400">List</button>
+              <button onclick="switchFormat('doughnut')" id="fmtDoughnut" class="px-2 py-1 rounded transition text-slate-400">Circle</button>
+              <button onclick="switchFormat('bar')" id="fmtBar" class="px-2 py-1 rounded transition text-slate-400">Bar</button>
+              <button onclick="switchFormat('list')" id="fmtList" class="px-2 py-1 rounded transition text-slate-400">List</button>
             </div>
           </div>
 
-          <!-- Canvas / List Container -->
-          <div class="flex-1 flex items-center justify-center min-h-[260px] relative">
-            <div id="chartCanvasWrapper" class="w-full h-[250px] flex items-center justify-center">
+          <div class="flex-1 flex items-center justify-center min-h-[220px]">
+            <div id="canvasWrapper" class="w-full h-[220px]">
               <canvas id="pollChart"></canvas>
             </div>
-            <div id="listFormatWrapper" class="w-full space-y-3 hidden">
-              <!-- Breakdown list items -->
+            <div id="listWrapper" class="w-full space-y-3 hidden">
+              <!-- Breakdown list -->
             </div>
           </div>
         </div>
 
       </div>
     </section>
-
   </main>
 
   <!-- QR Code Modal -->
@@ -192,297 +171,287 @@
       <button onclick="toggleQrModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
         <i class="fa-solid fa-xmark text-lg"></i>
       </button>
-      <h3 class="font-bold text-white text-base mb-1">Scan to Vote</h3>
-      <p class="text-xs text-slate-400 mb-4">Point your camera to open the live poll</p>
+      <h3 class="font-bold text-white text-base mb-1">Scan to Open Poll</h3>
+      <p class="text-xs text-slate-400 mb-4">Valid for 7 days across any device</p>
       <div id="qrcode" class="bg-white p-4 rounded-xl inline-block shadow-inner"></div>
     </div>
   </div>
 
   <!-- Config Modal -->
   <div id="configModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl relative">
+    <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-md w-full shadow-2xl relative text-xs">
       <button onclick="closeConfigModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
         <i class="fa-solid fa-xmark text-lg"></i>
       </button>
-      <h3 class="font-bold text-white text-lg mb-1">Firebase Credentials</h3>
-      <p class="text-xs text-slate-400 mb-4">Paste your project credentials below to connect your custom database.</p>
-      
-      <div class="space-y-3 text-xs">
+      <h3 class="font-bold text-white text-base mb-1">Firebase Database Sync</h3>
+      <p class="text-slate-400 mb-4">Enter your Firebase project details to sync responses in real-time across multiple devices.</p>
+
+      <div class="space-y-3">
         <div>
           <label class="block text-slate-300 font-semibold mb-1">Database URL</label>
-          <input type="text" id="cfgDbUrl" placeholder="https://your-db-default-rtdb.firebaseio.com" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-indigo-500" />
+          <input type="text" id="cfgDbUrl" placeholder="https://your-app-rtdb.firebaseio.com" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" />
         </div>
         <div>
           <label class="block text-slate-300 font-semibold mb-1">API Key</label>
-          <input type="text" id="cfgApiKey" placeholder="AIzaSy..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-indigo-500" />
-        </div>
-        <div>
-          <label class="block text-slate-300 font-semibold mb-1">Project ID</label>
-          <input type="text" id="cfgProjectId" placeholder="your-project-id" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-indigo-500" />
+          <input type="text" id="cfgApiKey" placeholder="AIzaSy..." class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none" />
         </div>
       </div>
 
-      <div class="mt-6 flex justify-end gap-2">
-        <button onclick="closeConfigModal()" class="px-4 py-2 bg-slate-700 text-slate-300 text-xs font-semibold rounded-lg">Cancel</button>
-        <button onclick="saveConfig()" class="px-4 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-500">Save & Reinitialize</button>
+      <div class="mt-5 flex justify-end gap-2">
+        <button onclick="closeConfigModal()" class="px-4 py-2 bg-slate-700 text-slate-300 font-semibold rounded-lg">Close</button>
+        <button onclick="saveConfig()" class="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-500">Save Config</button>
       </div>
     </div>
   </div>
 
   <script>
-    // --- FIREBASE DEFAULT CONFIG (Demo Fallback) ---
-    let firebaseConfig = JSON.parse(localStorage.getItem('poll_fb_config')) || {
-      apiKey: "AIzaSyDemoKeyFallback0000000000000000",
-      authDomain: "live-poll-demo.firebaseapp.com",
-      databaseURL: "https://live-poll-demo-default-rtdb.firebaseio.com",
-      projectId: "live-poll-demo"
-    };
+    // --- STATE MANAGEMENT ---
+    const DURATION_MS = 7 * 24 * 60 * 60 * 1000; // STRICT 7-DAY DURATION
+    const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#f97316'];
 
-    let db = null;
-    let currentPollId = null;
-    let pollData = null;
+    let currentPoll = null;
     let chartInstance = null;
     let activeFormat = 'doughnut';
+    let db = null;
 
-    // COLOR PALETTE FOR CHARTS
-    const CHART_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#06b6d4', '#f97316'];
+    // Load saved Firebase credentials if available
+    let fbConfig = JSON.parse(localStorage.getItem('livepulse_fb_config')) || null;
 
-    // --- APP INITIALIZATION ---
     window.addEventListener('DOMContentLoaded', () => {
-      initFirebase();
+      initFirebaseIfAvailable();
 
-      // Check if URL has ?pollId=...
+      // Check URL for existing poll
       const urlParams = new URLSearchParams(window.location.search);
       const pollId = urlParams.get('pollId');
+      const encodedData = urlParams.get('pollData');
 
       if (pollId) {
-        loadPoll(pollId);
+        fetchPollById(pollId, encodedData);
+      } else if (encodedData) {
+        parseEncodedPoll(encodedData);
       } else {
         showCreateView();
       }
     });
 
-    function initFirebase() {
-      try {
-        if (!firebase.apps.length) {
-          firebase.initializeApp(firebaseConfig);
+    function initFirebaseIfAvailable() {
+      if (fbConfig && fbConfig.databaseURL) {
+        try {
+          if (!firebase.apps.length) firebase.initializeApp(fbConfig);
+          db = firebase.database();
+        } catch (e) {
+          console.warn("Firebase initialization skipped:", e);
         }
-        db = firebase.database();
-      } catch (err) {
-        console.error("Firebase Init Error:", err);
       }
     }
 
     // --- CREATE POLL HANDLER ---
-    function handleCreatePoll(event) {
-      event.preventDefault();
-      
+    function handleCreatePoll(e) {
+      e.preventDefault();
+
       const question = document.getElementById('pollQuestion').value.trim();
       const optionInputs = document.querySelectorAll('.poll-option-input');
-      const durationDays = parseInt(document.getElementById('pollDuration').value, 10);
-      const maxCap = parseInt(document.getElementById('pollMaxResponses').value, 10);
 
       const options = [];
-      optionInputs.forEach(input => {
-        const val = input.value.trim();
-        if (val) options.push(val);
+      optionInputs.forEach(i => {
+        if (i.value.trim()) options.push(i.value.trim());
       });
 
       if (options.length < 2) {
-        showToast('Please provide at least 2 options', 'error');
+        showToast("Please provide at least 2 options", "error");
         return;
       }
 
-      // Generate Random Unique ID
-      const newPollId = 'poll_' + Math.random().toString(36).substring(2, 9);
-      const createdAt = Date.now();
-      const expiresAt = createdAt + (durationDays * 24 * 60 * 60 * 1000);
+      const now = Date.now();
+      const pollId = 'poll_' + Math.random().toString(36).substring(2, 9);
 
-      // Build Options Object with 0 counts
-      const optionsMap = {};
+      const optionsObj = {};
       options.forEach((opt, idx) => {
-        optionsMap[`opt_${idx}`] = { text: opt, votes: 0 };
+        optionsObj[`opt_${idx}`] = { text: opt, votes: 0 };
       });
 
-      const newPollPayload = {
-        id: newPollId,
+      const pollPayload = {
+        id: pollId,
         question: question,
-        createdAt: createdAt,
-        expiresAt: expiresAt,
-        maxResponses: maxCap,
+        createdAt: now,
+        expiresAt: now + DURATION_MS,
+        maxResponses: 100,
         totalVotes: 0,
-        options: optionsMap
+        options: optionsObj
       };
 
-      // Save to Firebase or Local Storage fallback
+      // Save locally
+      localStorage.setItem('poll_' + pollId, JSON.stringify(pollPayload));
+
+      // Save to Firebase if database is connected
       if (db) {
-        db.ref('polls/' + newPollId).set(newPollPayload)
-          .then(() => navigateToPoll(newPollId))
-          .catch(err => {
-            console.warn("DB Write failed, falling back to LocalStorage:", err);
-            saveLocalPollAndNavigate(newPollId, newPollPayload);
-          });
-      } else {
-        saveLocalPollAndNavigate(newPollId, newPollPayload);
+        db.ref('polls/' + pollId).set(pollPayload);
       }
+
+      // Generate fail-safe URL (includes encoded fallback data directly in link)
+      const encodedState = btoa(unescape(encodeURIComponent(JSON.stringify(pollPayload))));
+      const shareUrl = `${window.location.origin}${window.location.pathname}?pollId=${pollId}&pollData=${encodedState}`;
+
+      // Update URL and View
+      window.history.pushState({}, '', shareUrl);
+      loadPollData(pollPayload);
+      showToast("Link generated! Valid for 7 days.");
     }
 
-    function saveLocalPollAndNavigate(id, payload) {
-      localStorage.setItem('local_' + id, JSON.stringify(payload));
-      navigateToPoll(id);
-    }
-
-    function navigateToPoll(id) {
-      const newUrl = window.location.origin + window.location.pathname + '?pollId=' + id;
-      window.history.pushState({ path: newUrl }, '', newUrl);
-      showToast('Poll created successfully!');
-      loadPoll(id);
-    }
-
-    // --- LOAD & LISTEN TO POLL ---
-    function loadPoll(pollId) {
-      currentPollId = pollId;
-
-      // Update UI Views
-      document.getElementById('createView').classList.add('hidden');
-      document.getElementById('activePollView').classList.remove('hidden');
-      document.getElementById('resetAppBtn').classList.remove('hidden');
-
-      const fullShareUrl = window.location.href;
-      document.getElementById('shareUrlInput').value = fullShareUrl;
-
-      // Realtime Firebase Listener
+    // --- FETCH & LOAD POLL STATE ---
+    function fetchPollById(pollId, fallbackData) {
       if (db) {
-        db.ref('polls/' + pollId).on('value', (snapshot) => {
-          const val = snapshot.val();
-          if (val) {
-            renderPollState(val);
+        db.ref('polls/' + pollId).on('value', (snap) => {
+          const data = snap.val();
+          if (data) {
+            loadPollData(data);
           } else {
-            // Check LocalStorage Fallback
-            const local = localStorage.getItem('local_' + pollId);
-            if (local) renderPollState(JSON.parse(local));
-            else showToast('Poll not found', 'error');
+            fallbackLocalOrEncoded(pollId, fallbackData);
           }
         });
       } else {
-        const local = localStorage.getItem('local_' + pollId);
-        if (local) renderPollState(JSON.parse(local));
+        fallbackLocalOrEncoded(pollId, fallbackData);
       }
     }
 
-    // --- RENDER POLL STATE ---
-    function renderPollState(data) {
-      pollData = data;
+    function fallbackLocalOrEncoded(pollId, fallbackData) {
+      const local = localStorage.getItem('poll_' + pollId);
+      if (local) {
+        loadPollData(JSON.parse(local));
+      } else if (fallbackData) {
+        parseEncodedPoll(fallbackData);
+      } else {
+        showToast("Poll not found or expired", "error");
+        showCreateView();
+      }
+    }
+
+    function parseEncodedPoll(encoded) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(escape(atob(encoded))));
+        loadPollData(decoded);
+      } catch (err) {
+        showToast("Invalid poll link", "error");
+        showCreateView();
+      }
+    }
+
+    function loadPollData(data) {
+      currentPoll = data;
+
+      document.getElementById('createView').classList.add('hidden');
+      document.getElementById('activePollView').classList.remove('hidden');
+      document.getElementById('newPollNavBtn').classList.remove('hidden');
+
       document.getElementById('activeQuestion').innerText = data.question;
       document.getElementById('totalVotesCount').innerText = data.totalVotes || 0;
 
-      // Check Expiration or Cap
+      // Update Share Link Box
+      document.getElementById('shareUrlInput').value = window.location.href;
+
+      // Calculate 7-Day Expiration
       const now = Date.now();
-      const isExpired = now > data.expiresAt;
+      const isExpired = now >= data.expiresAt;
       const isCapped = (data.totalVotes || 0) >= data.maxResponses;
 
       const badge = document.getElementById('pollStatusBadge');
+      const expiryBadge = document.getElementById('expiryBadge');
+
       if (isExpired || isCapped) {
         badge.className = "px-2.5 py-0.5 text-xs font-semibold rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30";
-        badge.innerText = isExpired ? "● Expired (7-Day Limit)" : "● Closed (Cap Reached)";
+        badge.innerText = isExpired ? "● Closed (7 Days Complete)" : "● Closed (100 Votes Max)";
+        expiryBadge.innerText = "Poll Ended";
       } else {
         badge.className = "px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
-        badge.innerText = "● Live Voting";
+        badge.innerText = "● Active Poll";
+
+        const msRemaining = data.expiresAt - now;
+        const daysLeft = Math.floor(msRemaining / (1000 * 60 * 60 * 24));
+        const hoursLeft = Math.floor((msRemaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        expiryBadge.innerText = `${daysLeft}d ${hoursLeft}h remaining`;
       }
 
-      // Remaining Time Indicator
-      const daysLeft = Math.max(0, Math.ceil((data.expiresAt - now) / (1000 * 60 * 60 * 24)));
-      document.getElementById('expiryBadge').innerText = `${daysLeft}d remaining`;
-
-      // Render Voting Buttons
-      renderVotingButtons(data, isExpired || isCapped);
-
-      // Render Visualization Chart
+      renderOptionsList(data, isExpired || isCapped);
       renderChartOrList(data);
     }
 
-    function renderVotingButtons(data, isDisabled) {
+    // --- RENDER OPTIONS & CAST VOTE ---
+    function renderOptionsList(data, isDisabled) {
       const container = document.getElementById('votingOptionsList');
       container.innerHTML = '';
 
       const hasVoted = localStorage.getItem('voted_' + data.id);
-      if (hasVoted) {
-        document.getElementById('alreadyVotedNotice').classList.remove('hidden');
-      } else {
-        document.getElementById('alreadyVotedNotice').classList.add('hidden');
-      }
+      document.getElementById('votedAlert').classList.toggle('hidden', !hasVoted);
 
       Object.keys(data.options).forEach((key) => {
         const opt = data.options[key];
         const btn = document.createElement('button');
         btn.disabled = isDisabled || !!hasVoted;
-        btn.className = `w-full text-left p-3.5 rounded-xl border transition flex items-center justify-between font-medium text-sm ${
-          hasVoted === key
+
+        const isUserPick = hasVoted === key;
+
+        btn.className = `w-full text-left p-3.5 rounded-xl border transition flex items-center justify-between text-xs font-semibold ${
+          isUserPick
             ? 'bg-indigo-600/20 border-indigo-500 text-indigo-200'
-            : 'bg-slate-900/80 border-slate-700/80 hover:border-indigo-500 text-slate-200 hover:bg-slate-900'
+            : 'bg-slate-900 border-slate-700/80 hover:border-indigo-500 text-slate-200'
         } ${btn.disabled ? 'opacity-60 cursor-not-allowed' : ''}`;
 
-        btn.onclick = () => submitVote(key);
+        btn.onclick = () => castVote(key);
 
         btn.innerHTML = `
           <span>${escapeHtml(opt.text)}</span>
-          <i class="fa-regular ${hasVoted === key ? 'fa-circle-check text-indigo-400' : 'fa-circle text-slate-600'} text-base"></i>
+          <i class="${isUserPick ? 'fa-solid fa-circle-check text-indigo-400' : 'fa-regular fa-circle text-slate-600'} text-sm"></i>
         `;
         container.appendChild(btn);
       });
     }
 
-    // --- SUBMIT VOTE HANDLER ---
-    function submitVote(optKey) {
-      if (!pollData || localStorage.getItem('voted_' + pollData.id)) return;
+    function castVote(optKey) {
+      if (!currentPoll || localStorage.getItem('voted_' + currentPoll.id)) return;
 
-      const pollRef = db ? db.ref('polls/' + currentPollId) : null;
-      localStorage.setItem('voted_' + currentPollId, optKey);
+      localStorage.setItem('voted_' + currentPoll.id, optKey);
 
-      if (pollRef) {
-        pollRef.transaction((current) => {
-          if (current) {
-            if (!current.options[optKey]) return current;
-            current.options[optKey].votes = (current.options[optKey].votes || 0) + 1;
-            current.totalVotes = (current.totalVotes || 0) + 1;
+      if (db) {
+        db.ref(`polls/${currentPoll.id}`).transaction((p) => {
+          if (p) {
+            p.options[optKey].votes = (p.options[optKey].votes || 0) + 1;
+            p.totalVotes = (p.totalVotes || 0) + 1;
           }
-          return current;
-        }).then(() => {
-          showToast('Vote recorded!');
-        }).catch(err => {
-          console.warn("Transaction error, local update:", err);
-          updateLocalVote(optKey);
+          return p;
         });
       } else {
-        updateLocalVote(optKey);
+        currentPoll.options[optKey].votes += 1;
+        currentPoll.totalVotes += 1;
+        localStorage.setItem('poll_' + currentPoll.id, JSON.stringify(currentPoll));
+
+        // Update URL encoded state so shareable URL reflects current votes locally
+        const encodedState = btoa(unescape(encodeURIComponent(JSON.stringify(currentPoll))));
+        const newUrl = `${window.location.origin}${window.location.pathname}?pollId=${currentPoll.id}&pollData=${encodedState}`;
+        window.history.pushState({}, '', newUrl);
+
+        loadPollData(currentPoll);
       }
+
+      showToast("Vote registered successfully!");
     }
 
-    function updateLocalVote(optKey) {
-      pollData.options[optKey].votes += 1;
-      pollData.totalVotes += 1;
-      localStorage.setItem('local_' + currentPollId, JSON.stringify(pollData));
-      renderPollState(pollData);
-      showToast('Vote recorded!');
-    }
-
-    // --- CHART & VISUALIZATION LOGIC ---
+    // --- CHART & VISUALIZATION ---
     function switchFormat(fmt) {
       activeFormat = fmt;
       ['fmtDoughnut', 'fmtBar', 'fmtList'].forEach(id => {
-        document.getElementById(id).className = "px-2.5 py-1 rounded-md transition font-medium text-slate-400";
+        document.getElementById(id).className = "px-2 py-1 rounded transition text-slate-400";
       });
 
-      if (fmt === 'doughnut') document.getElementById('fmtDoughnut').className = "px-2.5 py-1 rounded-md transition font-medium bg-indigo-600 text-white shadow";
-      if (fmt === 'bar') document.getElementById('fmtBar').className = "px-2.5 py-1 rounded-md transition font-medium bg-indigo-600 text-white shadow";
-      if (fmt === 'list') document.getElementById('fmtList').className = "px-2.5 py-1 rounded-md transition font-medium bg-indigo-600 text-white shadow";
+      if (fmt === 'doughnut') document.getElementById('fmtDoughnut').className = "px-2 py-1 rounded transition bg-indigo-600 text-white font-semibold";
+      if (fmt === 'bar') document.getElementById('fmtBar').className = "px-2 py-1 rounded transition bg-indigo-600 text-white font-semibold";
+      if (fmt === 'list') document.getElementById('fmtList').className = "px-2 py-1 rounded transition bg-indigo-600 text-white font-semibold";
 
-      if (pollData) renderChartOrList(pollData);
+      if (currentPoll) renderChartOrList(currentPoll);
     }
 
     function renderChartOrList(data) {
-      const canvasWrapper = document.getElementById('chartCanvasWrapper');
-      const listWrapper = document.getElementById('listFormatWrapper');
+      const canvasWrapper = document.getElementById('canvasWrapper');
+      const listWrapper = document.getElementById('listWrapper');
 
       if (activeFormat === 'list') {
         canvasWrapper.classList.add('hidden');
@@ -495,10 +464,10 @@
       listWrapper.classList.add('hidden');
 
       const labels = [];
-      const voteCounts = [];
-      Object.keys(data.options).forEach(key => {
-        labels.push(data.options[key].text);
-        voteCounts.push(data.options[key].votes || 0);
+      const votes = [];
+      Object.keys(data.options).forEach(k => {
+        labels.push(data.options[k].text);
+        votes.push(data.options[k].votes || 0);
       });
 
       const ctx = document.getElementById('pollChart').getContext('2d');
@@ -508,21 +477,17 @@
         type: activeFormat === 'bar' ? 'bar' : 'doughnut',
         data: {
           labels: labels,
-          datasets: [{
-            data: voteCounts,
-            backgroundColor: CHART_COLORS,
-            borderWidth: 0
-          }]
+          datasets: [{ data: votes, backgroundColor: COLORS, borderWidth: 0 }]
         },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          animation: false, // Disabled animation as per instruction
+          animation: false,
           plugins: {
             legend: {
               display: activeFormat === 'doughnut',
               position: 'bottom',
-              labels: { color: '#94a3b8', font: { size: 11 } }
+              labels: { color: '#94a3b8', font: { size: 10 } }
             }
           },
           scales: activeFormat === 'bar' ? {
@@ -534,65 +499,67 @@
     }
 
     function renderListBreakdown(data) {
-      const listWrapper = document.getElementById('listFormatWrapper');
-      listWrapper.innerHTML = '';
+      const container = document.getElementById('listWrapper');
+      container.innerHTML = '';
       const total = data.totalVotes || 1;
 
-      Object.keys(data.options).forEach((key, idx) => {
-        const opt = data.options[key];
+      Object.keys(data.options).forEach((k, idx) => {
+        const opt = data.options[k];
         const pct = Math.round(((opt.votes || 0) / total) * 100);
 
-        const item = document.createElement('div');
-        item.className = 'space-y-1';
-        item.innerHTML = `
-          <div class="flex justify-between text-xs font-medium text-slate-300">
+        const row = document.createElement('div');
+        row.className = 'space-y-1';
+        row.innerHTML = `
+          <div class="flex justify-between text-xs font-semibold text-slate-300">
             <span>${escapeHtml(opt.text)}</span>
-            <span class="text-indigo-400 font-bold">${opt.votes || 0} (${pct}%)</span>
+            <span class="text-indigo-400">${opt.votes || 0} (${pct}%)</span>
           </div>
-          <div class="w-full bg-slate-900 rounded-full h-2.5 overflow-hidden border border-slate-700/50">
-            <div class="h-full rounded-full" style="width: ${pct}%; background-color: ${CHART_COLORS[idx % CHART_COLORS.length]}"></div>
+          <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-700">
+            <div class="h-full rounded-full" style="width: ${pct}%; background-color: ${COLORS[idx % COLORS.length]}"></div>
           </div>
         `;
-        listWrapper.appendChild(item);
+        container.appendChild(row);
       });
     }
 
-    // --- UTILITIES & HELPERS ---
+    // --- UTILITIES ---
     function addOptionInput() {
       const container = document.getElementById('optionsContainer');
       const count = container.children.length + 1;
-      if (count > 8) {
-        showToast('Maximum 8 options allowed', 'error');
-        return;
-      }
+      if (count > 8) return showToast("Maximum 8 options allowed", "error");
+
       const input = document.createElement('input');
       input.type = 'text';
       input.required = true;
       input.placeholder = `Option ${count}`;
-      input.className = 'poll-option-input w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-500 text-sm outline-none transition';
+      input.className = 'poll-option-input w-full px-4 py-2.5 bg-slate-900 border border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 text-white placeholder-slate-500 text-sm outline-none';
       container.appendChild(input);
     }
 
     function copyShareUrl() {
-      const input = document.getElementById('shareUrlInput');
-      input.select();
-      input.setSelectionRange(0, 99999);
+      const urlInput = document.getElementById('shareUrlInput');
+      urlInput.select();
 
       if (navigator.clipboard && window.isSecureContext) {
-        navigator.clipboard.writeText(input.value)
-          .then(() => showToast('Link copied to clipboard!'))
-          .catch(() => fallbackCopy(input.value));
+        navigator.clipboard.writeText(urlInput.value)
+          .then(() => showToast("Link copied to clipboard!"))
+          .catch(() => fallbackCopy(urlInput.value));
       } else {
-        fallbackCopy(input.value);
+        fallbackCopy(urlInput.value);
       }
     }
 
     function fallbackCopy(text) {
       try {
+        const el = document.createElement('textarea');
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
         document.execCommand('copy');
-        showToast('Link copied to clipboard!');
-      } catch (err) {
-        showToast('Copy failed, select text manually', 'error');
+        document.body.removeChild(el);
+        showToast("Link copied to clipboard!");
+      } catch (e) {
+        showToast("Select text manually to copy", "error");
       }
     }
 
@@ -605,8 +572,8 @@
         container.innerHTML = '';
         new QRCode(container, {
           text: window.location.href,
-          width: 160,
-          height: 160,
+          width: 150,
+          height: 150,
           colorDark: "#0f172a",
           colorLight: "#ffffff"
         });
@@ -616,28 +583,21 @@
     function showToast(msg, type = 'success') {
       const toast = document.getElementById('toast');
       const toastContent = document.getElementById('toastContent');
-      const toastMsg = document.getElementById('toastMsg');
-      const toastIcon = document.getElementById('toastIcon');
+      document.getElementById('toastMsg').innerText = msg;
 
-      toastMsg.innerText = msg;
-      if (type === 'error') {
-        toastContent.className = "bg-rose-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-sm font-medium";
-        toastIcon.className = "fa-solid fa-circle-exclamation";
-      } else {
-        toastContent.className = "bg-indigo-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-sm font-medium";
-        toastIcon.className = "fa-solid fa-circle-check";
-      }
+      toastContent.className = type === 'error'
+        ? "bg-rose-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-sm font-medium"
+        : "bg-indigo-600 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center space-x-3 text-sm font-medium";
 
       toast.classList.remove('translate-y-20', 'opacity-0');
-      setTimeout(() => {
-        toast.classList.add('translate-y-20', 'opacity-0');
-      }, 3000);
+      setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
     }
 
     function openConfigModal() {
-      document.getElementById('cfgDbUrl').value = firebaseConfig.databaseURL || '';
-      document.getElementById('cfgApiKey').value = firebaseConfig.apiKey || '';
-      document.getElementById('cfgProjectId').value = firebaseConfig.projectId || '';
+      if (fbConfig) {
+        document.getElementById('cfgDbUrl').value = fbConfig.databaseURL || '';
+        document.getElementById('cfgApiKey').value = fbConfig.apiKey || '';
+      }
       document.getElementById('configModal').classList.remove('hidden');
     }
 
@@ -648,34 +608,24 @@
     function saveConfig() {
       const dbUrl = document.getElementById('cfgDbUrl').value.trim();
       const apiKey = document.getElementById('cfgApiKey').value.trim();
-      const projectId = document.getElementById('cfgProjectId').value.trim();
 
-      if (!dbUrl) {
-        showToast('Database URL is required', 'error');
-        return;
-      }
+      if (!dbUrl) return showToast("Database URL required", "error");
 
-      firebaseConfig = {
-        apiKey: apiKey || "AIzaSyDemoKeyFallback0000000000000000",
-        authDomain: `${projectId || 'demo'}.firebaseapp.com`,
-        databaseURL: dbUrl,
-        projectId: projectId || "demo"
-      };
-
-      localStorage.setItem('poll_fb_config', JSON.stringify(firebaseConfig));
+      fbConfig = { databaseURL: dbUrl, apiKey: apiKey || "AIzaSyDemo" };
+      localStorage.setItem('livepulse_fb_config', JSON.stringify(fbConfig));
       closeConfigModal();
-      showToast('Configuration saved. Reloading...');
+      showToast("Config saved! Reloading page...");
       setTimeout(() => window.location.reload(), 1000);
     }
 
     function resetToHome() {
-      window.location.href = window.location.pathname;
+      window.location.href = window.location.origin + window.location.pathname;
     }
 
     function showCreateView() {
       document.getElementById('createView').classList.remove('hidden');
       document.getElementById('activePollView').classList.add('hidden');
-      document.getElementById('resetAppBtn').classList.add('hidden');
+      document.getElementById('newPollNavBtn').classList.add('hidden');
       switchFormat('doughnut');
     }
 
